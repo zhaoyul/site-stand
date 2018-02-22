@@ -5,12 +5,11 @@
   (:gen-class))
 
 (def cli-options
-  ;; An option with a required argument
   [["-i" "--input input.jpg" "image file"
     :default "input.jpg"]
    ["-h" "--help"]])
 
-(defn url "https://api-cn.faceplusplus.com/humanbodypp/beta/detect")
+(def url "https://api-cn.faceplusplus.com/humanbodypp/beta/detect")
 
 (defn multi-part [file-name]
   {:multipart
@@ -32,22 +31,24 @@
       false
       true)))
 
+(defn sit-or-stand [human-body]
+  (if (sit? (human-body "humanbody_rectangle"))
+    "坐着"
+    "站着")
+  )
 
 (defn make-request [file-name]
   (let [respond (client/post url (multi-part file-name))
         status (:status respond)]
+    (pprint respond)
     (if (= 200 status)
       (let [respond-body (json/read-str (get respond :body))]
         (if (human? respond-body)
-          (map (fn [human-body]
-                 (if (sit? (get human-body "humanbody-rectangle"))
-                   "坐着"
-                   "站着"))
-               (respond-body "humanbodies"))))
+          (map sit-or-stand
+               (respond-body "humanbodies" ))
+          (println "没有检测到人脸，或者图片格式错误")))
       )))
 
-
-(parse-opts ["-i" "input.jpg"] cli-options)
 
 (defn -main [& args]
   (parse-opts args cli-options))
