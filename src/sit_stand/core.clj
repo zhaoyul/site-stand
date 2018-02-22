@@ -1,12 +1,14 @@
 (ns sit-stand.core
   (:require [clojure.tools.cli :refer [parse-opts]]
             [clj-http.client :as client]
-            [clojure.data.json :as json])
+            [clojure.data.json :as json]
+            [clojure.pprint :as pprint])
   (:gen-class))
 
 (def cli-options
   [["-i" "--input input.jpg" "image file"
-    :default "input.jpg"]
+    :default "input.jpg"
+    :validate [#(.exists (clojure.java.io/as-file %)) "文件不存在"]]
    ["-h" "--help"]])
 
 (def url "https://api-cn.faceplusplus.com/humanbodypp/beta/detect")
@@ -37,10 +39,22 @@
     "站着")
   )
 
+(defn validate-args
+  [args]
+  (let [{:keys [options  errors summary]} (parse-opts args cli-options)]
+    (cond
+      (:help options) ; help => exit OK with usage summary
+      {:summary summary :ok? true}
+      errors  {:exit-message (error-msg errors)}
+      (and (= 1 (count arguments))
+           (#{"start" "stop" "status"} (first arguments)))
+      :else ; failed custom validation => exit with usage summary
+      {:exit-message (usage summary)})))
+
 (defn make-request [file-name]
   (let [respond (client/post url (multi-part file-name))
         status (:status respond)]
-    (pprint respond)
+    (pprint/pprint respond)
     (if (= 200 status)
       (let [respond-body (json/read-str (get respond :body))]
         (if (human? respond-body)
@@ -51,4 +65,6 @@
 
 
 (defn -main [& args]
-  (parse-opts args cli-options))
+  (let [options (parse-opts args cli-options)
+        input (get-in options [:options :input])]
+    (make-request input)))
